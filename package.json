@@ -1,0 +1,24 @@
+{
+  "name": "san-juan-roofing",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --watch server/index.ts & bunx --bun vite",
+    "build": "bunx --bun vite build",
+    "start": "NODE_ENV=production bun server/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/solid-query": "^5.104.1",
+    "@tanstack/solid-router": "^1.170.39",
+    "@tanstack/solid-store": "^0.11.2",
+    "maplibre-gl": "^6.13.0",
+    "solid-js": "^1.9.17"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vite-plugin-solid": "^2.11.14"
+  }
+}
