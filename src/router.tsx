@@ -6,7 +6,6 @@ import { Layout, NotFound } from "./routes/Layout";
 import { Home } from "./routes/Home";
 import { PostPage } from "./routes/Post";
 import { ChallengePage } from "./routes/ChallengePage";
-import { Areas } from "./routes/Areas";
 import { MapPage } from "./routes/MapPage";
 import { QuotePage } from "./routes/Quote";
 import { Leads } from "./routes/Leads";
@@ -43,12 +42,6 @@ const postRoute = createRoute({
   component: PostPage,
 });
 
-const areasRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/areas",
-  component: Areas,
-});
-
 const mapRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/map",
@@ -78,7 +71,7 @@ const leadsRoute = createRoute({
   component: Leads,
 });
 
-const routeTree = rootRoute.addChildren([homeRoute, challengeRoute, postRoute, areasRoute, mapRoute, quoteRoute, leadsRoute]);
+const routeTree = rootRoute.addChildren([homeRoute, challengeRoute, postRoute, mapRoute, quoteRoute, leadsRoute]);
 
 export const router = createRouter({
   routeTree,

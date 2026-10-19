@@ -12,7 +12,7 @@ export function Home() {
     <section class="page">
       <h1>Challenges</h1>
       <p class="lede">
-        Three typical roofing jobs on the islands, each written as step-by-step instructions so every step can be priced.
+        Three roofing jobs on the islands. For each one we’ll write the instructions for completing it, to scope what it costs.
       </p>
 
       <ol class="challenge-list">
@@ -20,12 +20,11 @@ export function Home() {
           {(c) => (
             <li>
               <p class="eyebrow">
-                Challenge {c.number} · {c.place}, {c.island}
+                Challenge {c.number} · {c.location}
               </p>
               <Link to="/challenges/$challengeId" params={{ challengeId: c.id }}>
                 {c.title}
               </Link>
-              <p>{c.summary}</p>
             </li>
           )}
         </For>

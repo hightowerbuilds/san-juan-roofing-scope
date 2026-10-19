@@ -19,9 +19,10 @@ bun run typecheck
 - `src/router.tsx` routes; loaders prefetch through the TanStack Query cache
 - `src/lib/api.ts` query options and fetchers
 - `src/lib/quoteStore.ts` TanStack Store for the quote draft (persisted to localStorage)
-- `src/routes/` pages: home (research projects), research post, service area, quote, leads
+- `src/routes/` pages: home (challenges and research), challenge, research post, map, quote, leads
 - `server/research.ts` research projects and posts, served at `/api/projects` and `/api/projects/:projectId/posts/:postId`
 - `scripts/census-san-juan.ts` regenerates `server/data/san-juan-towns.json` from Census ACS summary files (no API key): `bun scripts/census-san-juan.ts`
-- `src/components/IslandMap.tsx` 3D map on `/areas` (MapLibre GL + EOX Sentinel-2 imagery + OpenFreeMap labels + AWS Terrain Tiles; no API keys). Lazy-loaded.
+- `server/challenges.ts` roofing challenges, served at `/api/challenges` and `/api/challenges/:id`
+- `/map` pixel-art map of the islands. `bun scripts/build-pixel-map.ts` regenerates `public/pixel-map/` from OpenFreeMap vector tiles and AWS Terrain Tiles (no API keys); see `docs/pixel-map-plan.md`
 
 `/leads` lists submitted quote requests and has **no auth yet**. Lock it down before deploying.

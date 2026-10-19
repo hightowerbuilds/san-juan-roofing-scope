@@ -215,6 +215,9 @@ light/normal/dark variants of each land class, using 2 bits of the byte.
 
 The visual side is signed off. Water shimmer is dropped from Phase 5.
 
+The `/areas` service-area page and its MapLibre map were removed later the same day. `/map` is
+now the site's only map.
+
 ## 13. Risks
 
 - **OSM tile generalization at z13:** may smooth tiny islets. Fall back to z14 (≈ 2.4 k tiles)

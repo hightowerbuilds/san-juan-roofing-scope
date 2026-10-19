@@ -104,10 +104,6 @@ th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--li
 th { color: var(--muted); font-weight: 600; white-space: nowrap; }
 tr:last-child td { border-bottom: 0; }
 
-/* Map */
-.map { height: clamp(360px, 60vh, 560px); margin-top: 32px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: #dfe8ec; }
-.map-loading { display: grid; place-items: center; color: #5f6b67; }
-
 /* Pixel map */
 /* A full-bleed page fills the window between header and footer, so the map never scrolls the page. */
 #app:has(> main.full-bleed) { height: 100dvh; min-height: 560px; }
@@ -146,24 +142,38 @@ main.full-bleed { padding: 0; display: flex; flex-direction: column; min-height:
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* Challenges */
-.challenge-list { list-style: none; padding: 0; margin: 40px 0 0; display: grid; gap: 32px; }
+.challenge-list { list-style: none; padding: 0; margin: 40px 0 0; display: grid; gap: 24px; }
 .challenge-list a { font-size: 1.25rem; font-weight: 700; }
-.challenge-list p { margin: 4px 0 0; color: var(--muted); max-width: 64ch; }
-.challenge-list .eyebrow { margin: 0 0 4px; font-size: 0.85rem; letter-spacing: 0.02em; }
-.spec { display: grid; grid-template-columns: max-content 1fr; gap: 8px 32px; margin: 32px 0 0; }
-.spec dt { color: var(--muted); }
-.spec dd { margin: 0; }
-@media (max-width: 600px) {
-  .spec { grid-template-columns: 1fr; gap: 0; }
-  .spec dd { margin-bottom: 10px; }
+.challenge-list .eyebrow { margin: 0 0 4px; font-size: 0.85rem; letter-spacing: 0.02em; color: var(--muted); }
+
+.plan-phase { margin-top: 40px; max-width: 760px; }
+.plan-steps { list-style: none; padding: 0; margin: 32px 0 0; border-top: 1px solid var(--line); }
+.plan-steps > li {
+  display: grid; grid-template-columns: 9.5rem 1fr auto; gap: 4px 24px;
+  padding: 20px 0; border-bottom: 1px solid var(--line);
 }
-.phases { list-style: none; padding: 0; margin: 0; max-width: 68ch; }
-.phase { margin-top: 28px; }
-.phase h3 { margin-bottom: 8px; }
-.phase ul { margin: 0; padding-left: 20px; list-style: disc; }
-.phase li + li { margin-top: 6px; }
-.price { margin: 10px 0 0; font-size: 0.92rem; color: var(--muted); }
-.price span { color: var(--text); font-weight: 700; }
+.plan-option { margin-top: 48px; }
+.plan-option > h3 { font-size: 1.25rem; }
+.plan-steps h4 { margin: 0 0 4px; font-size: 1rem; }
+.plan-steps > li.step-day { display: block; padding: 20px 0 4px; border-bottom: 0; font-weight: 700; font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.option-compare { margin-top: 24px; }
+.notes h4 { font-size: 1rem; margin: 0 0 8px; }
+.plan-steps p { margin: 0; }
+.step-time, .step-cost { font-variant-numeric: tabular-nums; }
+.step-time { color: var(--muted); font-size: 0.9rem; padding-top: 2px; }
+.step-cost { font-weight: 700; text-align: right; }
+.cost-lines { list-style: none; padding: 0; margin: 10px 0 0; font-size: 0.88rem; color: var(--muted); }
+.cost-lines li { display: flex; justify-content: space-between; gap: 16px; font-variant-numeric: tabular-nums; }
+.labor-heading { margin: 32px 0 0; font-size: 1rem; }
+.labor-lines { margin-top: 8px; padding-bottom: 16px; border-bottom: 1px solid var(--line); font-size: 0.95rem; }
+.phase-totals { display: grid; grid-template-columns: 1fr auto; gap: 6px 24px; margin: 16px 0 0; font-variant-numeric: tabular-nums; }
+.phase-totals dt { color: var(--muted); }
+.phase-totals dd { margin: 0; text-align: right; }
+.phase-totals .grand { padding-top: 8px; color: var(--text); font-weight: 700; font-size: 1.1rem; }
+@media (max-width: 600px) {
+  .plan-steps > li { grid-template-columns: 1fr auto; }
+  .step-time { grid-column: 1 / -1; }
+}
 
 /* Research */
 .muted { color: var(--muted); }

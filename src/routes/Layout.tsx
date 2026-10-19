@@ -2,7 +2,6 @@ import { Link, Outlet, useMatches } from "@tanstack/solid-router";
 
 const nav = [
   { to: "/", label: "Home" },
-  { to: "/areas", label: "Service area" },
   { to: "/map", label: "Map" },
 ] as const;
 
