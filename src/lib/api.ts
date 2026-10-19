@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/solid-query";
-import type { Island, Post, Project, Quote, QuoteInput, Service } from "../../shared/types";
+import type { Challenge, ChallengeSummary, Island, Post, Project, Quote, QuoteInput, Service } from "../../shared/types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -27,6 +27,17 @@ export const quotesQuery = queryOptions({
   queryKey: ["quotes"],
   queryFn: () => request<Quote[]>("/api/quotes"),
 });
+
+export const challengesQuery = queryOptions({
+  queryKey: ["challenges"],
+  queryFn: () => request<ChallengeSummary[]>("/api/challenges"),
+});
+
+export const challengeQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["challenge", id],
+    queryFn: () => request<Challenge>(`/api/challenges/${id}`),
+  });
 
 export const projectsQuery = queryOptions({
   queryKey: ["projects"],

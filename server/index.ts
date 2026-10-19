@@ -1,5 +1,6 @@
 import { islands, services } from "./data";
 import { createQuote, listQuotes } from "./db";
+import { challenges, findChallenge } from "./challenges";
 import { findPost, projects } from "./research";
 import type { QuoteInput } from "../shared/types";
 
@@ -37,6 +38,11 @@ const server = Bun.serve({
   routes: {
     "/api/services": () => Response.json(services),
     "/api/islands": () => Response.json(islands),
+    "/api/challenges": () => Response.json(challenges),
+    "/api/challenges/:id": (req) => {
+      const challenge = findChallenge(req.params.id);
+      return challenge ? Response.json(challenge) : Response.json({ error: "Challenge not found" }, { status: 404 });
+    },
     "/api/projects": () => Response.json(projects),
     "/api/projects/:projectId/posts/:postId": (req) => {
       const post = findPost(req.params.projectId, req.params.postId);

@@ -1,10 +1,11 @@
 import { QueryClient } from "@tanstack/solid-query";
 import { createRootRouteWithContext, createRoute, createRouter } from "@tanstack/solid-router";
-import { islandsQuery, postQuery, projectsQuery, quotesQuery, servicesQuery } from "./lib/api";
+import { challengeQuery, challengesQuery, islandsQuery, postQuery, projectsQuery, quotesQuery, servicesQuery } from "./lib/api";
 import { pixelMapQuery } from "./lib/pixelMap";
 import { Layout, NotFound } from "./routes/Layout";
 import { Home } from "./routes/Home";
 import { PostPage } from "./routes/Post";
+import { ChallengePage } from "./routes/ChallengePage";
 import { Areas } from "./routes/Areas";
 import { MapPage } from "./routes/MapPage";
 import { QuotePage } from "./routes/Quote";
@@ -20,8 +21,19 @@ const rootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({
 const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  loader: ({ context }) => context.queryClient.ensureQueryData(projectsQuery),
+  loader: ({ context }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(challengesQuery),
+      context.queryClient.ensureQueryData(projectsQuery),
+    ]),
   component: Home,
+});
+
+const challengeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/challenges/$challengeId",
+  loader: ({ context, params }) => context.queryClient.ensureQueryData(challengeQuery(params.challengeId)),
+  component: ChallengePage,
 });
 
 const postRoute = createRoute({
@@ -66,7 +78,7 @@ const leadsRoute = createRoute({
   component: Leads,
 });
 
-const routeTree = rootRoute.addChildren([homeRoute, postRoute, areasRoute, mapRoute, quoteRoute, leadsRoute]);
+const routeTree = rootRoute.addChildren([homeRoute, challengeRoute, postRoute, areasRoute, mapRoute, quoteRoute, leadsRoute]);
 
 export const router = createRouter({
   routeTree,

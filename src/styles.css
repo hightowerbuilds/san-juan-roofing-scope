@@ -32,7 +32,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 16px/1.6 Lato, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 #app { min-height: 100vh; display: flex; flex-direction: column; }
@@ -145,10 +145,29 @@ main.full-bleed { padding: 0; display: flex; flex-direction: column; min-height:
 }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
+/* Challenges */
+.challenge-list { list-style: none; padding: 0; margin: 40px 0 0; display: grid; gap: 32px; }
+.challenge-list a { font-size: 1.25rem; font-weight: 700; }
+.challenge-list p { margin: 4px 0 0; color: var(--muted); max-width: 64ch; }
+.challenge-list .eyebrow { margin: 0 0 4px; font-size: 0.85rem; letter-spacing: 0.02em; }
+.spec { display: grid; grid-template-columns: max-content 1fr; gap: 8px 32px; margin: 32px 0 0; }
+.spec dt { color: var(--muted); }
+.spec dd { margin: 0; }
+@media (max-width: 600px) {
+  .spec { grid-template-columns: 1fr; gap: 0; }
+  .spec dd { margin-bottom: 10px; }
+}
+.phases { list-style: none; padding: 0; margin: 0; max-width: 68ch; }
+.phase { margin-top: 28px; }
+.phase h3 { margin-bottom: 8px; }
+.phase ul { margin: 0; padding-left: 20px; list-style: disc; }
+.phase li + li { margin-top: 6px; }
+.price { margin: 10px 0 0; font-size: 0.92rem; color: var(--muted); }
+.price span { color: var(--text); font-weight: 700; }
+
 /* Research */
 .muted { color: var(--muted); }
-.project { margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--line); }
-.project h2 { margin-top: 0; }
+.project { margin-top: 24px; }
 .post-list { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 24px; }
 .post-list a { font-size: 1.15rem; font-weight: 600; }
 .post-list p { margin: 4px 0; color: var(--muted); }

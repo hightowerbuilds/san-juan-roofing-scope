@@ -56,3 +56,26 @@ export type Project = {
   summary: string;
   posts: PostSummary[];
 };
+
+export type ChallengeSummary = {
+  id: string;
+  number: number;
+  title: string;
+  island: string;
+  place: string;
+  summary: string;
+  tags: string[];
+};
+
+export type ChallengePhase = {
+  title: string;
+  steps: string[];
+  price: string[]; // what to put a cost on in this phase
+};
+
+export type Challenge = ChallengeSummary & {
+  spec: { label: string; value: string }[];
+  takeoff: DataTable;
+  phases: ChallengePhase[];
+  openQuestions: string[];
+};
