@@ -108,6 +108,34 @@ tr:last-child td { border-bottom: 0; }
 .map { height: clamp(360px, 60vh, 560px); margin-top: 32px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: #dfe8ec; }
 .map-loading { display: grid; place-items: center; color: #5f6b67; }
 
+/* Pixel map */
+/* A full-bleed page fills the window between header and footer, so the map never scrolls the page. */
+#app:has(> main.full-bleed) { height: 100dvh; min-height: 560px; }
+main.full-bleed { padding: 0; display: flex; flex-direction: column; min-height: 0; }
+.pixel-map-page { position: relative; flex: 1; min-height: 0; }
+.pixel-map-status { display: grid; place-items: center; height: 100%; margin: 0; color: #e6eef5; }
+.pixel-map, .pixel-map canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pixel-map canvas { display: block; cursor: grab; touch-action: none; }
+.pixel-map canvas:active { cursor: grabbing; }
+.pixel-map canvas:focus-visible { outline: 3px solid #f4d35e; outline-offset: -3px; }
+.pixel-map-zoom { position: absolute; top: 16px; right: 16px; display: grid; gap: 6px; }
+.pixel-map-zoom button {
+  width: 40px; height: 40px; border: 2px solid #0e1a24; border-radius: 4px;
+  background: #f3ead2; color: #0e1a24; font: 700 20px/1 system-ui, sans-serif; cursor: pointer;
+}
+.pixel-map-zoom button:hover { background: #fff6dc; }
+.pixel-map-readout, .pixel-map-attribution {
+  position: absolute; left: 16px; padding: 4px 8px; border-radius: 4px;
+  background: rgb(14 26 36 / 0.75); color: #e6eef5; font-size: 0.8rem; font-variant-numeric: tabular-nums;
+}
+.pixel-map-readout { bottom: 44px; display: flex; gap: 12px; }
+.pixel-map-attribution { bottom: 12px; right: 16px; left: auto; font-size: 0.72rem; }
+@media (max-width: 600px) {
+  .pixel-map-readout { bottom: 56px; }
+  .pixel-map-attribution { left: 16px; }
+}
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
 /* Research */
 .muted { color: var(--muted); }
 .project { margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--line); }
