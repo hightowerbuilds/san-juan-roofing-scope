@@ -25,4 +25,6 @@ bun run typecheck
 - `server/challenges.ts` roofing challenges, served at `/api/challenges` and `/api/challenges/:id`
 - `/map` pixel-art map of the islands. `bun scripts/build-pixel-map.ts` regenerates `public/pixel-map/` from OpenFreeMap vector tiles and AWS Terrain Tiles (no API keys); see `docs/pixel-map-plan.md`
 
+`docs/build-log.md` records what changed each day, the decisions behind it, and open items.
+
 `/leads` lists submitted quote requests and has **no auth yet**. Lock it down before deploying.
