@@ -151,7 +151,8 @@ const PLACE_KINDS = new Set(["city", "town", "village", "hamlet", "suburb", "isl
 const ROAD_KINDS = new Set(["motorway", "trunk", "primary", "secondary", "tertiary"]);
 
 const places = new Map<string, PixelMapPlace>();
-const ferrySegments: LonLat[][] = [];
+const ferrySegments: LonLat[][] = []; // unnamed, from `transportation`
+const namedFerrySegments = new Map<string, LonLat[][]>(); // from `transportation_name`
 const roadSegments = new Map<string, LonLat[][]>();
 
 const str = (v: unknown) => (v === undefined ? "" : String(v));
@@ -243,7 +244,16 @@ function processVectorTile(bytes: Uint8Array, x: number, y: number) {
       }
     }
   }
+  for (const f of features("transportation_name")) {
+    const name = str(f.properties["name:en"]) || str(f.properties.name);
+    if (f.type !== 2 || str(f.properties.class) !== "ferry" || !name) continue;
+    const segs = namedFerrySegments.get(name) ?? namedFerrySegments.set(name, []).get(name)!;
+    for (const line of f.loadGeometry()) {
+      for (const part of clipLine(line, f.extent)) segs.push(part.map(([px, py]) => toLonLat(px, py, f.extent)));
+    }
+  }
 }
+
 
 // Clips a polyline to the tile square [0, extent]² (Liang–Barsky per segment), returning the
 // runs that stay inside. Keeps tile-buffer copies of a line from being drawn twice.
@@ -430,7 +440,26 @@ console.log(
   [...counts].sort((a, b) => a[0] - b[0]).map(([s, n]) => `${names[s]} ${((100 * n) / (W * H)).toFixed(1)}%`).join(", "),
 );
 
-const ferries = chain(ferrySegments);
+// Named routes come from transportation_name. Skip long-haul, Canadian and seasonal passenger
+// routes that only cross the map (Anacortes–Sidney has been suspended since 2020 and isn't mapped).
+const SKIP_FERRIES = /Alaska|Victoria Clipper|Swartz Bay|Harbor Hopper|Port Townsend - Friday Harbor|Sidney Spit|Hat Island/;
+// The two county car ferries have no name in that layer; pick their lines out by terminals.
+const COUNTY_FERRIES: { name: string; ends: [LonLat, LonLat] }[] = [
+  { name: "Guemes Island Ferry", ends: [[-122.623, 48.519], [-122.625, 48.528]] },
+  { name: "Lummi Island Ferry", ends: [[-122.67, 48.731], [-122.681, 48.72]] },
+];
+const near = (a: LonLat, b: LonLat) => Math.hypot((a[0] - b[0]) * M_PER_DEG_LON, (a[1] - b[1]) * M_PER_DEG_LAT) < 300;
+const ferries = [
+  ...[...namedFerrySegments]
+    .filter(([name]) => !SKIP_FERRIES.test(name))
+    .flatMap(([name, segs]) => chain(segs).map((path) => ({ name, path }))),
+  ...chain(ferrySegments).flatMap((path) => {
+    const county = COUNTY_FERRIES.find(({ ends: [a, b] }) =>
+      (near(path[0]!, a) && near(path.at(-1)!, b)) || (near(path[0]!, b) && near(path.at(-1)!, a)),
+    );
+    return county ? [{ name: county.name, path }] : [];
+  }),
+];
 const roads = [...roadSegments].flatMap(([kind, segs]) => chain(segs).map((path) => ({ kind, path })));
 const meta: PixelMapMeta = {
   version: FORMAT_VERSION,

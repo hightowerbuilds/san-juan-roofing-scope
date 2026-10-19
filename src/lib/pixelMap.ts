@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/solid-query";
 import { decodeCells, type PixelMapCells, type PixelMapMeta } from "../../shared/pixelMap";
+import { paintRoutes } from "./mapOverlays";
 import { BAND_MARGIN, type PaintJob } from "./pixelArt";
 
 async function fetchCells(): Promise<PixelMapCells> {
@@ -24,15 +25,16 @@ export const pixelMapQuery = queryOptions({
   queryKey: ["pixel-map"],
   queryFn: async () => {
     const [cells, meta] = await Promise.all([fetchCells(), fetchMeta()]);
-    const terrain = await paintTerrain(cells, meta.cellMeters);
+    const terrain = await paintTerrain(cells, meta);
     return { cells, meta, terrain };
   },
   staleTime: Infinity,
   gcTime: Infinity, // keep the painted terrain for revisits
 });
 
-// Paints the cell grid onto a canvas at one pixel per cell, in parallel horizontal bands.
-async function paintTerrain(cells: PixelMapCells, cellMeters: number): Promise<HTMLCanvasElement> {
+// Paints the cell grid onto a canvas at one pixel per cell, in parallel horizontal bands, then
+// bakes in highways and ferry routes.
+async function paintTerrain(cells: PixelMapCells, meta: PixelMapMeta): Promise<HTMLCanvasElement> {
   const { width: w, height: h } = cells;
   const bands = Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 2) - 1));
   const bandHeight = Math.ceil(h / bands);
@@ -55,7 +57,7 @@ async function paintTerrain(cells: PixelMapCells, cellMeters: number): Promise<H
           surface: cells.surface.slice(r0 * w, r1 * w),
           elevation: cells.elevation.slice(r0 * w, r1 * w),
         },
-        cellMeters,
+        cellMeters: meta.cellMeters,
         rowOffset: r0,
         totalHeight: h,
         from,
@@ -76,5 +78,6 @@ async function paintTerrain(cells: PixelMapCells, cellMeters: number): Promise<H
       });
     }),
   );
+  paintRoutes(ctx, meta);
   return canvas;
 }

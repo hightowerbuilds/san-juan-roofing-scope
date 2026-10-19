@@ -92,8 +92,6 @@ light/normal/dark variants of each land class, using 2 bits of the byte.
 - Shore: sand or rock rim, then grass and farmland, then forest. Hills step up through bands.
   Mt Constitution reads as a summit.
 - NW-lit hillshade, quantized and dithered (no smooth gradients).
-- Optional animation: a slow water shimmer that cycles a few sparkle pixels per frame, not a
-  full-image repaint.
 
 ## 6. Phases
 
@@ -105,7 +103,6 @@ light/normal/dark variants of each land class, using 2 bits of the byte.
 3. **Art pass.** Palette, dithering, hillshade, foam, forest texture. Iterate from screenshots.
 4. **Overlays.** Towns, ferry routes, pixel font, compass, scale bar, attribution.
 5. **Polish.**
-   - water shimmer
    - loading state
    - keyboard and a11y (an aria label and a text list of places)
    - check `bun run build` and that the prod server serves `/pixel-map/*`
@@ -186,7 +183,39 @@ light/normal/dark variants of each land class, using 2 bits of the byte.
   - The slowest band is about 280 ms. The dev-server page is ready about 1.4 s after navigation,
     including module compile and fetch.
 
-## 11. Risks
+## 11. Phase 4 results (2026-10-19)
+
+- **Ferries:**
+  - Named routes come from OMT `transportation_name`. The long-haul, BC and seasonal passenger
+    routes are skipped by name: Alaska, Victoria Clipper, Swartz Bay, Harbor Hopper,
+    PT–Friday Harbor, Sidney Spit, Hat Island.
+  - The unnamed Guemes and Lummi Island county ferries are matched by terminal coordinates.
+  - Anacortes–Sidney (suspended since 2020) isn't in the data.
+  - Overpass was unavailable (406/502/timeouts), so it isn't a dependency.
+- **Baked into the terrain at cell resolution** (`paintRoutes`, 14 ms):
+  - motorway, trunk and primary roads as 1-cell tan paths
+  - ferries as a single rasterized network, dashed by BFS distance from its loose ends, so
+    overlapping routes share dashes; each dash has a drop shadow
+- **Labels** (`buildLabels`/`drawLabels`), 0.65 ms per frame for all 403 places:
+  - Rendered in screen space in Pixelify Sans (Google Fonts) with a hard 1-px outline.
+  - Each label is cached as a sprite per DPR.
+  - Labels are tiered by zoom and placed greedily in priority order, trying 4 positions around
+    the marker.
+  - Priority order: Friday Harbor / Eastsound / Lopez Village, then city, town, large islands,
+    villages, peaks ≥ 400 m, hamlets, then small islands and minor peaks.
+  - Markers: red house (towns), cream dot (villages and hamlets), stepped ▲ with a snowy tip
+    (peaks).
+- **HUD:**
+  - SNES menu-window styling (blue gradient, white border, pixel font).
+  - A crisp SVG pixel compass.
+  - km and mi scale bars that pick round lengths.
+  - Coordinates under the cursor.
+
+## 12. Scope note (2026-10-19)
+
+The visual side is signed off. Water shimmer is dropped from Phase 5.
+
+## 13. Risks
 
 - **OSM tile generalization at z13:** may smooth tiny islets. Fall back to z14 (≈ 2.4 k tiles)
   if the preview shows losses.

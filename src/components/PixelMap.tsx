@@ -1,5 +1,6 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { PixelMapMeta } from "../../shared/pixelMap";
+import { buildLabels, clearLabelSprites, drawLabels, LABEL_FONT } from "../lib/mapOverlays";
 
 // Zoom stops in device pixels per map cell. From 1 up, every cell covers the same whole number of
 // device pixels, so the art stays crisp. The lowest stop is always "whole map fits".
@@ -7,6 +8,40 @@ const ZOOM_STOPS = [0.5, 1, 2, 3, 4, 6, 8, 12, 16, 24];
 const ZOOM_MS = 160;
 const WHEEL_STEP = 50; // accumulated wheel pixels per zoom stop
 const GLIDE_DECAY_MS = 220;
+const SCALE_BAR_MIN_PX = 64;
+
+// Picks a round distance whose bar is at least SCALE_BAR_MIN_PX wide.
+function scaleBar(metersPerPx: number, steps: number[], unit: number, name: string, small?: { unit: number; name: string }) {
+  const value = steps.find((v) => (v * unit) / metersPerPx >= SCALE_BAR_MIN_PX) ?? steps.at(-1)!;
+  const label = small && value < 1 ? `${Math.round((value * unit) / small.unit)} ${small.name}` : `${value} ${name}`;
+  return { px: Math.round((value * unit) / metersPerPx), label };
+}
+const KM_STEPS = [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50];
+const MI_STEPS = [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50];
+
+// 9×15 pixel compass needle: o outline, r north (red), w south (white). Left half lit, right half shaded.
+const COMPASS = [
+  "....o....",
+  "...oro...",
+  "...oro...",
+  "..orrro..",
+  "..orrro..",
+  ".orrrrro.",
+  ".orrrrro.",
+  "orrrrrrro",
+  ".owwwwwo.",
+  ".owwwwwo.",
+  "..owwwo..",
+  "..owwwo..",
+  "...owo...",
+  "...owo...",
+  "....o....",
+];
+const COMPASS_COLORS: Record<string, [string, string]> = {
+  o: ["#0b1530", "#0b1530"],
+  r: ["#ff6a4c", "#c0321f"],
+  w: ["#ffffff", "#aab6cc"],
+};
 
 type Props = { terrain: HTMLCanvasElement; meta: PixelMapMeta; background: string };
 
@@ -14,11 +49,12 @@ export default function PixelMap(props: Props) {
   let canvas!: HTMLCanvasElement;
   let controls: { zoomBy(dir: 1 | -1): void; fitAll(): void } | undefined;
   const [cursor, setCursor] = createSignal<{ lat: number; lon: number } | null>(null);
-  const [zoom, setZoom] = createSignal(0);
+  const [cssPerCell, setCssPerCell] = createSignal(1);
 
   onMount(() => {
     const { terrain, meta, background } = props;
     const ctx = canvas.getContext("2d", { alpha: false })!;
+    const labels = buildLabels(meta);
     const W = terrain.width;
     const H = terrain.height;
 
@@ -52,7 +88,7 @@ export default function PixelMap(props: Props) {
       cam.x = wx - (ax - cw / 2) / scale;
       cam.y = wy - (ay - ch / 2) / scale;
       clamp();
-      setZoom(scale);
+      setCssPerCell(scale / dpr);
     }
 
     function zoomTo(scale: number, ax = cw / 2, ay = ch / 2) {
@@ -114,6 +150,7 @@ export default function PixelMap(props: Props) {
       if (sx1 > sx0 && sy1 > sy0) {
         ctx.drawImage(terrain, sx0, sy0, sx1 - sx0, sy1 - sy0, ox + sx0 * s, oy + sy0 * s, (sx1 - sx0) * s, (sy1 - sy0) * s);
       }
+      drawLabels(ctx, labels, { ox, oy, scale: s, dpr, width: cw, height: ch });
     }
 
     // ---- Size ----
@@ -125,6 +162,7 @@ export default function PixelMap(props: Props) {
       fit = Math.min(cw / W, ch / H);
       if (wasFit || cam.scale < fit) setScale(fit, cam.x, cam.y, cw / 2, ch / 2);
       clamp();
+      setCssPerCell(cam.scale / dpr);
       cancelAnimationFrame(frame);
       draw(performance.now()); // resizing clears the canvas; repaint now to avoid a blank frame
     };
@@ -267,6 +305,12 @@ export default function PixelMap(props: Props) {
     canvas.addEventListener("keydown", onKeyDown);
     controls = { zoomBy: (dir) => zoomBy(dir), fitAll: () => zoomTo(fit) };
 
+    // Labels first draw with a fallback font; redraw once the pixel font is in.
+    void document.fonts.load(`600 16px "${LABEL_FONT}"`).then(() => {
+      clearLabelSprites();
+      requestDraw();
+    });
+
     onCleanup(() => {
       observer.disconnect();
       cancelAnimationFrame(frame);
@@ -275,9 +319,12 @@ export default function PixelMap(props: Props) {
     });
   });
 
-  const scaleLabel = () => {
-    const z = zoom();
-    return z >= 1 ? `Zoom ${Math.round(z * 10) / 10}× · 1 cell = ${props.meta.cellMeters} m` : `Overview · 1 cell = ${props.meta.cellMeters} m`;
+  const bars = () => {
+    const metersPerPx = props.meta.cellMeters / cssPerCell();
+    return [
+      scaleBar(metersPerPx, KM_STEPS, 1000, "km", { unit: 1, name: "m" }),
+      scaleBar(metersPerPx, MI_STEPS, 1609.344, "mi", { unit: 0.3048, name: "ft" }),
+    ];
   };
 
   return (
@@ -288,15 +335,32 @@ export default function PixelMap(props: Props) {
         role="img"
         aria-label="Pixel-art map of the San Juan Islands, Fidalgo and Whidbey Islands, and the Skagit Valley. Drag to pan; use the mouse wheel or plus and minus keys to zoom."
       />
+      <svg class="pixel-map-compass" viewBox="0 -7 9 22" shape-rendering="crispEdges" aria-hidden="true">
+        <text x="4.5" y="-1.5" text-anchor="middle">N</text>
+        <For each={COMPASS}>
+          {(row, y) =>
+            [...row].map((ch, x) =>
+              ch === "." ? null : <rect x={x} y={y()} width="1" height="1" fill={COMPASS_COLORS[ch]![x < 4 ? 0 : 1]} />,
+            )
+          }
+        </For>
+      </svg>
       <div class="pixel-map-zoom">
-        <button type="button" onClick={() => controls?.zoomBy(1)} aria-label="Zoom in">+</button>
-        <button type="button" onClick={() => controls?.zoomBy(-1)} aria-label="Zoom out">−</button>
-        <button type="button" onClick={() => controls?.fitAll()} aria-label="Show the whole map">⤢</button>
+        <button type="button" class="pixel-window" onClick={() => controls?.zoomBy(1)} aria-label="Zoom in">+</button>
+        <button type="button" class="pixel-window" onClick={() => controls?.zoomBy(-1)} aria-label="Zoom out">−</button>
+        <button type="button" class="pixel-window" onClick={() => controls?.fitAll()} aria-label="Show the whole map">⤢</button>
       </div>
-      <div class="pixel-map-readout" aria-hidden="true">
-        <span>{scaleLabel()}</span>
+      <div class="pixel-map-readout pixel-window" aria-hidden="true">
+        <For each={bars()}>
+          {(bar) => (
+            <div class="scale-bar">
+              <span class="scale-bar-line" style={{ width: `${bar.px}px` }} />
+              <span>{bar.label}</span>
+            </div>
+          )}
+        </For>
         <Show when={cursor()}>
-          {(c) => <span>{c().lat.toFixed(4)}° N, {Math.abs(c().lon).toFixed(4)}° W</span>}
+          {(c) => <div class="coords">{c().lat.toFixed(4)}° N {Math.abs(c().lon).toFixed(4)}° W</div>}
         </Show>
       </div>
       <div class="pixel-map-attribution">{props.meta.attribution.join(" · ")}</div>

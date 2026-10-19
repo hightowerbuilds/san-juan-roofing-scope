@@ -51,7 +51,7 @@ export type PixelMapMeta = {
   height: number;
   elevMax: number;
   places: PixelMapPlace[];
-  ferries: LonLat[][];
+  ferries: { name: string; path: LonLat[] }[]; // name is empty for a few unnamed local runs
   roads: { kind: string; path: LonLat[] }[];
   attribution: string[];
 };
