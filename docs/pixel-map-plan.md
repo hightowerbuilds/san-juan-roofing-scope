@@ -161,7 +161,32 @@ light/normal/dark variants of each land class, using 2 bits of the byte.
 - **Not yet tested:** a real phone and touch pinch (the browser window here couldn't be resized
   to phone width).
 
-## 10. Risks
+## 10. Phase 3 results (2026-10-19)
+
+- **Art code:** `src/lib/pixelArt.ts` is pure, DOM-free code shared by the browser and the build
+  script's `preview.png`.
+  - Every material has a 5-shade SNES ramp, picked by NW-lit hillshade with 4×4 Bayer dithering.
+- **Materials:**
+  - Sea: depth from distance to shore (log bands), a dithered foam rim, a surf band, and sparse
+    "^" wave crests in open water.
+  - Lakes and rivers: a rim, a body color and an occasional glint.
+  - Shore rim: sand below 12 m, rock above it.
+  - Forest: a canopy of jittered 3-cell trees, lit up-left, with dark gaps. Forest shades the
+    grass and fields to its south.
+  - Farmland: 16×12 blocks, some split, with hedgerows and crop rows in either direction.
+    Gold/green/brown at 45/40/15%.
+  - Towns: 2×2 roofs, mostly red and brown, with shadows on a stone ground.
+  - Unmapped land: forest or grass from fbm noise, with more forest uphill.
+  - Alpine: rock above about 1,050 m, snow above about 1,550 m, both with noisy edges.
+- **Performance:**
+  - A single thread took about 1.0–1.5 s in both Chrome and Bun.
+  - Painting now runs in up to 6 Web Workers in horizontal bands (`paintRows`, with a 40-row
+    `BAND_MARGIN`). Patterns are keyed on absolute rows, and the banded output is byte-identical
+    to the single pass (verified).
+  - The slowest band is about 280 ms. The dev-server page is ready about 1.4 s after navigation,
+    including module compile and fetch.
+
+## 11. Risks
 
 - **OSM tile generalization at z13:** may smooth tiny islets. Fall back to z14 (≈ 2.4 k tiles)
   if the preview shows losses.

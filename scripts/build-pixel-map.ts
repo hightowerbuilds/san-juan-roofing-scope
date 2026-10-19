@@ -2,7 +2,7 @@
 //   OpenFreeMap vector tiles (OpenMapTiles schema, OSM data): coastline, lakes, land cover, towns,
 //     places, peaks, ferry routes, main roads
 //   AWS Terrarium elevation tiles: land height only (their bathymetry is too smoothed to define a coast)
-// Writes public/pixel-map/cells.bin + meta.json, and a debug render to scripts/.cache/preview.png.
+// Writes public/pixel-map/cells.bin + meta.json, and a full render to scripts/.cache/preview.png.
 // Run: bun scripts/build-pixel-map.ts   (tiles are cached in scripts/.cache/, so reruns are offline)
 
 import { mkdir } from "node:fs/promises";
@@ -12,7 +12,6 @@ import { decode as decodePng, encode as encodePng } from "fast-png";
 import {
   ELEV_MAX,
   FORMAT_VERSION,
-  decodeElevation,
   encodeElevation,
   Surface,
   encodeCells,
@@ -21,6 +20,7 @@ import {
   type PixelMapMeta,
   type PixelMapPlace,
 } from "../shared/pixelMap";
+import { paintCells } from "../src/lib/pixelArt";
 
 // Haro Strait to Burlington, Patos Island to the south tip of Whidbey.
 const BBOX = { west: -123.35, east: -122.25, north: 48.82, south: 47.88 };
@@ -398,45 +398,6 @@ async function sampleElevation() {
   }
 }
 
-// ---- Debug preview ---------------------------------------------------------------------------
-
-const PREVIEW_COLORS: Record<number, [number, number, number]> = {
-  [Surface.Sea]: [38, 92, 168],
-  [Surface.Lake]: [70, 140, 210],
-  [Surface.River]: [70, 140, 210],
-  [Surface.Land]: [150, 180, 90],
-  [Surface.Farmland]: [200, 200, 110],
-  [Surface.Grass]: [130, 190, 90],
-  [Surface.Wood]: [50, 120, 60],
-  [Surface.Wetland]: [110, 150, 120],
-  [Surface.Sand]: [230, 215, 150],
-  [Surface.Rock]: [150, 140, 130],
-  [Surface.Town]: [190, 120, 100],
-  [Surface.Runway]: [90, 90, 90],
-};
-
-function renderPreview(): Uint8Array {
-  const rgb = new Uint8Array(W * H * 3);
-  for (let r = 0; r < H; r++) {
-    for (let c = 0; c < W; c++) {
-      const i = r * W + c;
-      const s = surface[i]!;
-      const color = PREVIEW_COLORS[s]!;
-      let shade = 1;
-      if (!isWater(s)) {
-        // NW light: slope toward the upper left is lit.
-        const e = (dr: number, dc: number) =>
-          decodeElevation(elevation[Math.min(H - 1, Math.max(0, r + dr)) * W + Math.min(W - 1, Math.max(0, c + dc))]!);
-        const dzdx = (e(0, 1) - e(0, -1)) / (2 * CELL_M);
-        const dzdy = (e(1, 0) - e(-1, 0)) / (2 * CELL_M);
-        shade = Math.max(0.55, Math.min(1.35, 1 + (dzdx + dzdy) * -1.2));
-      }
-      for (let k = 0; k < 3; k++) rgb[i * 3 + k] = Math.min(255, color[k]! * shade);
-    }
-  }
-  return rgb;
-}
-
 // ---- Main ------------------------------------------------------------------------------------
 
 const started = performance.now();
@@ -494,7 +455,10 @@ await mkdir(OUT, { recursive: true });
 const cells = Bun.gzipSync(encodeCells({ width: W, height: H, surface, elevation }), { level: 9 });
 await Bun.write(`${OUT}/cells.bin`, cells);
 await Bun.write(`${OUT}/meta.json`, JSON.stringify(meta));
-await Bun.write(`${CACHE}/preview.png`, encodePng({ width: W, height: H, data: renderPreview(), channels: 3 }));
+const paintStart = performance.now();
+const pixels = paintCells({ width: W, height: H, surface, elevation }, CELL_M);
+console.log(`Painted preview in ${Math.round(performance.now() - paintStart)} ms`);
+await Bun.write(`${CACHE}/preview.png`, encodePng({ width: W, height: H, data: pixels, channels: 4 }));
 
 const kb = (n: number) => `${Math.round(n / 1024)} KB`;
 console.log(
