@@ -24,7 +24,7 @@ const rates = {
   towMpgEmpty: 10, // ...pulling the empty 30' trailer (assumed)
   towMpgLoaded: 8, // ...loaded with the metal (assumed)
   trailerPerDay: 150, // 30' flatbed rental near Nu-Ray, per day (placeholder until a yard quotes)
-  trailerDays: 2,
+  trailerDays: 4,
   rigFareUnder60: 319.8, // Anacortes → Orcas, vehicle under 60 ft (F-550 + 30' trailer), driver included
   loadSupplies: 150, // straps, edge protectors, 4x4 dunnage, tarp, if not already on hand (assumed)
 };
@@ -34,12 +34,23 @@ const order = {
   roofSquares: 40,
   waste: 0.1,
   panelPricePerSqFt: 5.0, // placeholder: published 24-ga material ranges run about $2.50–9.00/sq ft
-  accessoriesShare: 0.2, // trim, clips, screws, closures, sealant, underlayment, as a share of panels (assumed)
+  accessoriesShare: 0.2, // trim, clips, screws, closures, sealant, as a share of panels (assumed)
   lbPerSqFt: 1.3, // 24-ga steel panel, per sq ft of roof covered (approximate)
-  accessoriesLb: 600, // trim, fasteners, underlayment (approximate)
+  accessoriesLb: 500, // trim and fasteners (approximate)
 };
 const orderSqFt = Math.round(order.roofSquares * (1 + order.waste) * 100);
-const loadLb = Math.round((orderSqFt * order.lbPerSqFt + order.accessoriesLb) / 100) * 100;
+
+// High-temperature ice and water shield over the whole deck: the dry-in underlayment.
+const iceWater = {
+  squares: 40,
+  laps: 0.1, // side and end laps
+  product: "CertainTeed WinterGuard HT",
+  rollSqFt: 195, // 36 in. × 65 ft roll
+  rollPrice: 175, // placeholder: WinterGuard Sand lists at about $105–155 a roll, PRO HT at $205
+  rollLb: 60, // approximate
+};
+const iceWaterRolls = Math.ceil((iceWater.squares * 100 * (1 + iceWater.laps)) / iceWater.rollSqFt);
+const loadLb = Math.round((orderSqFt * order.lbPerSqFt + order.accessoriesLb + iceWaterRolls * iceWater.rollLb) / 100) * 100;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -57,7 +68,8 @@ type StepInput = {
   end: string;
   title: string;
   detail: string;
-  paid?: boolean; // the crew member is on the clock (default true)
+  paid?: boolean; // crew time on the clock (default true)
+  crew?: number; // paid people on this step (default 1)
   work?: boolean; // time spent on the estimate itself
   miles?: number;
   mpg?: number; // default: the F-150 alone
@@ -67,7 +79,7 @@ type StepInput = {
 
 // Steps carry direct costs only; their paid time is costed once, in the labor lines at the end.
 function step(input: StepInput): PlanStep {
-  const { day, start, end, title, detail, paid = true, work = false, miles = 0, mpg = rates.mpg, diesel = false, extra = [] } = input;
+  const { day, start, end, title, detail, paid = true, crew = 1, work = false, miles = 0, mpg = rates.mpg, diesel = false, extra = [] } = input;
   const hours = (minutes(end) - minutes(start)) / 60;
   const costs: CostLine[] = [];
   if (miles) {
@@ -75,15 +87,15 @@ function step(input: StepInput): PlanStep {
     costs.push({ label: `${diesel ? "Diesel" : "Fuel"}: ${miles} mi at ${mpg} mpg`, amount: round2((miles / mpg) * price) });
   }
   costs.push(...extra);
-  return { day, start, end, title, detail, paidHours: paid ? hours : 0, estimateHours: work ? hours : 0, costs };
+  return { day, start, end, title, detail, paidHours: paid ? hours * crew : 0, estimateHours: work ? hours : 0, costs };
 }
 
-function crewLabor(steps: PlanStep[], when: string): CostLine[] {
+// One paid crew member with the owner along, unless told otherwise.
+function crewLabor(steps: PlanStep[], when: string, who = "Crew member", ownerAlong = true): CostLine[] {
   const hours = steps.reduce((total, s) => total + s.paidHours, 0);
-  return [
-    { label: `Crew member: ${hrs(hours)} at $${rates.laborRate}/h (${when})`, amount: round2(hours * rates.laborRate) },
-    { label: "Owner: rides along, not paid hourly", amount: 0 },
-  ];
+  const lines = [{ label: `${who}: ${hrs(hours)} at $${rates.laborRate}/h (${when})`, amount: round2(hours * rates.laborRate) }];
+  if (ownerAlong) lines.push({ label: "Owner: rides along, not paid hourly", amount: 0 });
+  return lines;
 }
 
 const meals = (meal: "breakfast" | "lunch" | "dinner"): CostLine => ({
@@ -109,7 +121,7 @@ const sharedAssumptions = [
   `Two people in the truck: one crew member at $${rates.laborRate}/hour and the company owner, who isn't paid hourly. The owner books the trip beforehand.`,
   `Fuel at $${rates.fuelPrice}/gal (Washington average) and ${rates.mpg} mpg for an F-150 carrying a ladder rack.`,
   `The $${rates.laborRate} rate is the wage only; payroll taxes and workers' comp would add to it.`,
-  "Truck wear and insurance aren't included. The metal order is costed in part 3.",
+  "Truck wear and insurance aren't included. The metal order is costed in part 3, and its delivery in phase 2.",
 ];
 
 const ferrySources = [
@@ -440,12 +452,9 @@ const overnight: PlanPhase = {
   ],
 };
 
-// ---- Challenge 1, phase 1, part 3: order from Nu-Ray, pick up, deliver to Orcas ----
+// ---- Challenge 1, phase 1, part 3: order the metal ----
 
-const day1 = "Day 1: pickup and ferry";
-const day2 = "Day 2: unload and return the trailer";
 const panelCost = round2(orderSqFt * order.panelPricePerSqFt);
-const diesel = (mpg: number) => ({ mpg, diesel: true });
 
 const orderSteps: PlanStep[] = [
   step({
@@ -454,27 +463,89 @@ const orderSteps: PlanStep[] = [
     end: "11:00 AM",
     title: "Approve the order and pay",
     detail:
-      "Once the measurements are confirmed (part 2) and the homeowner's deposit is in, sign Nu-Ray's final quote, pay, and get a written order confirmation with the pickup date and yard address. Time the pickup to the start of phase 2, so the metal doesn't sit on site.",
+      `Once the measurements are confirmed (part 2) and the homeowner's deposit is in, sign Nu-Ray's final quote, pay, and get a written order confirmation with the lead time and the yard address. Order ${iceWaterRolls} rolls of ${iceWater.product} ice and water shield for the dry-in from the Northwest roofing supplier Nu-Ray recommends: ask the rep for one near their yard, so it's picked up on the same trip. Ask Nu-Ray to hold the order for pickup until the roof is sheathed (phase 2).`,
     paid: false,
   }),
-  step({
-    day: office,
-    start: "11:00 AM",
-    end: "12:00 PM",
-    title: "Book the trailer, the ferry and the motel",
+];
+
+const orderMetal: PlanPhase = {
+  number: 1,
+  part: 3,
+  title: "Order the metal",
+  summary:
+    "Place the order with Nu-Ray once the measurements are confirmed and the deposit is in: the panels, trim and accessories. Order the ice and water shield that covers the whole deck for the dry-in, CertainTeed WinterGuard HT, from the supplier Nu-Ray recommends.",
+  steps: orderSteps,
+  labor: [{ label: "Owner: desk work, not paid hourly", amount: 0 }],
+  materials: [
+    {
+      label: `Panels: ${orderSqFt.toLocaleString("en-US")} sq ft (${order.roofSquares} squares plus ${order.waste * 100}% waste) at $${order.panelPricePerSqFt.toFixed(2)}/sq ft`,
+      amount: panelCost,
+    },
+    {
+      label: `Trim, clips, screws, closures, sealant: about ${order.accessoriesShare * 100}% of the panels`,
+      amount: round2(panelCost * order.accessoriesShare),
+    },
+    {
+      label: `Ice and water shield, ${iceWater.product}, from Nu-Ray's recommended supplier: ${iceWaterRolls} rolls of ${iceWater.rollSqFt} sq ft (${iceWater.squares} squares plus ${iceWater.laps * 100}% for laps) at $${iceWater.rollPrice} (placeholder)`,
+      amount: round2(iceWaterRolls * iceWater.rollPrice),
+    },
+  ],
+  assumptions: [
+    `Ice and water shield is ${iceWater.product}, CertainTeed's high-temperature membrane for metal roofs, from a Northwest roofing supplier Nu-Ray recommends; ask their rep for the name (SRS Distribution lists Nu-Ray as a key supplier). The $${iceWater.rollPrice} a roll is a placeholder until that supplier quotes: no HT price is published, and other WinterGuard rolls list at about $105–205.`,
+    "The panel and trim prices are placeholders until Nu-Ray quotes. Published material-only prices for 24-gauge standing seam run about $2.50–9.00 per sq ft. Sales tax isn't included.",
+    "Panels are cut to length for this roof and can't be returned, so nothing is ordered before the contract, the deposit and the measurements.",
+  ],
+  sources: [
+    { label: "Nu-Ray Metals", url: "https://www.nuraymetals.com/" },
+    { label: "Standing seam material prices (national guide)", url: "https://roofvista.com/resources/guides/metal-roofing-cost" },
+    { label: "SRS Distribution: Nu-Ray Metals key supplier listing", url: "https://www.srsdistribution.com/en/products/key-suppliers/nu-ray-metals/" },
+    { label: "CertainTeed WinterGuard HT listing (Hancock Lumber)", url: "https://shop.hancocklumber.com/product/certainteed-winter-guard-ht-ice-water-36-x65-619693" },
+    { label: "CertainTeed WinterGuard underlayments brochure", url: "https://www.buildsite.com/pdf/certainteed/Winterguard-Underlayments-Summary-Brochure-2954589.pdf" },
+  ],
+};
+
+// ---- Challenge 1, phase 2: dry-in and metal delivery ----
+
+const day1 = "Day 1: pickup and ferry";
+const day2 = "Day 2: unload and start the dry-in";
+const day3 = "Day 3: finish the dry-in";
+const day4 = "Day 4: return the trailer";
+const diesel = (mpg: number) => ({ mpg, diesel: true });
+const motelNight: CostLine = {
+  label: `Motel: 1 room at $${rates.motelRoom} plus ${Math.round(rates.lodgingTax * 100)}% tax`,
+  amount: round2(rates.motelRoom * (1 + rates.lodgingTax)),
+};
+
+// Phase 2 is the crew's job: two paid crew members on the road, and the crew lead handles the calls.
+const lead = "Crew lead, from the office";
+const crewStep = (input: StepInput) => step({ crew: input.day === lead ? 1 : 2, ...input });
+
+const deliverySteps: PlanStep[] = [
+  crewStep({
+    day: lead,
+    start: "8:00 AM",
+    end: "8:30 AM",
+    title: "The general contractor says the roof is sheathed",
     detail:
-      "Rent a 30 ft flatbed for two days from a yard near Nu-Ray. Check that its hitch (gooseneck or bumper-pull) and brake plug fit the F-550, and that its rated capacity covers the load. Book the 3:20 PM Anacortes–Orcas sailing for the F-550 and trailer (call WSF if the online system won't take a vehicle that long) and the 11:50 AM back the next day. Book a room in Eastsound and tell the general contractor when the metal arrives.",
-    paid: false,
+      "Agree on the dry-in date. Ask where to stage the metal, whether the site has power, and whether a telehandler will be on site (it would save unloading by hand). Confirm with Nu-Ray, and with the supplier holding the ice and water shield, that both orders are ready for pickup.",
   }),
-  step({
+  crewStep({
+    day: lead,
+    start: "8:30 AM",
+    end: "9:30 AM",
+    title: "Book the trailer, the ferry and the motel",
+    detail: `Rent a 30 ft flatbed for ${rates.trailerDays} days from a yard near Nu-Ray. Check that its hitch (gooseneck or bumper-pull) and brake plug fit the F-550, and that its rated capacity covers the load. Book the 3:20 PM Anacortes–Orcas sailing for the F-550 and trailer (call WSF if the online system won't take a vehicle that long) and the 6:50 AM back on day 4. Book three nights in Eastsound.`,
+  }),
+  crewStep({
     day: "Day before",
     start: "3:00 PM",
     end: "3:30 PM",
     title: "Get the F-550 ready",
-    detail: "Fuel up and load the straps, edge protectors, 4x4 dunnage to keep the bundles off the deck, a tarp, and work gloves for unloading.",
+    detail:
+      "Fuel up and load the straps, edge protectors, 4x4 dunnage to keep the bundles off the deck, a tarp, work gloves, and the tools for the dry-in (hammer tackers, knives, chalk line, harnesses and roof anchors).",
     extra: [{ label: "Straps, edge protectors, dunnage, tarp (if not on hand)", amount: rates.loadSupplies }],
   }),
-  step({
+  crewStep({
     day: day1,
     start: "5:15 AM",
     end: "8:00 AM",
@@ -483,7 +554,7 @@ const orderSteps: PlanStep[] = [
     miles: 130,
     ...diesel(rates.f550Mpg),
   }),
-  step({
+  crewStep({
     day: day1,
     start: "8:00 AM",
     end: "8:45 AM",
@@ -491,55 +562,48 @@ const orderSteps: PlanStep[] = [
     detail: "Walk around it with the yard (tires, lights, brakes, deck), photograph any damage, hitch it and test the brakes.",
     extra: [{ label: `Trailer rental: ${rates.trailerDays} days at $${rates.trailerPerDay}`, amount: rates.trailerDays * rates.trailerPerDay }],
   }),
-  step({
-    day: day1,
-    start: "8:45 AM",
-    end: "9:00 AM",
-    title: "Drive to Nu-Ray's yard",
-    detail: "A few miles, towing empty.",
-    miles: 3,
-    ...diesel(rates.towMpgEmpty),
-  }),
-  step({
+  crewStep({ day: day1, start: "8:45 AM", end: "9:00 AM", title: "Drive to Nu-Ray's yard", detail: "A few miles, towing empty.", miles: 3, ...diesel(rates.towMpgEmpty) }),
+  crewStep({
     day: day1,
     start: "9:00 AM",
     end: "10:30 AM",
     title: "Load, check and secure the order",
     detail:
-      "Nu-Ray loads the bundles by forklift. Before signing, count every bundle and trim piece against the order and check color, gauge and damage. Set the bundles on dunnage, strap them down with edge protectors, and tarp the load.",
+      "Nu-Ray loads the bundles by forklift. Before signing, count every bundle, trim piece and roll of ice and water shield against the order and check color, gauge and damage. Set the bundles on dunnage, strap them down with edge protectors, and tarp the load.",
   }),
-  step({
+  crewStep({
     day: day1,
     start: "10:30 AM",
-    end: "1:15 PM",
+    end: "11:00 AM",
+    title: "Pick up the ice and water shield",
+    detail: `Stop at the supplier Nu-Ray recommended, near their yard. Count the ${iceWaterRolls} rolls, load them on the trailer and strap them down.`,
+    miles: 5,
+    ...diesel(rates.towMpgLoaded),
+  }),
+  crewStep({
+    day: day1,
+    start: "11:00 AM",
+    end: "1:30 PM",
     title: "Drive up I-5 to the Anacortes ferry terminal",
     detail: "About 110 miles north on I-5, then west on SR-20 at Burlington. Loaded, so take it steady.",
     miles: 110,
     ...diesel(rates.towMpgLoaded),
   }),
-  step({
+  crewStep({ day: day1, start: "1:30 PM", end: "2:00 PM", title: "Lunch", detail: "Unpaid meal break in Anacortes.", paid: false, extra: [meals("lunch")] }),
+  crewStep({
     day: day1,
-    start: "1:15 PM",
-    end: "1:45 PM",
-    title: "Lunch",
-    detail: "Unpaid meal break in Anacortes.",
-    paid: false,
-    extra: [meals("lunch")],
-  }),
-  step({
-    day: day1,
-    start: "1:45 PM",
+    start: "2:00 PM",
     end: "3:20 PM",
     title: "Wait in the ferry line",
-    detail: "In line 45–60 minutes before the 3:20 PM sailing, with time to spare. The earlier 11:55 AM boat leaves before the load can get there.",
+    detail: "In line 45–60 minutes before the 3:20 PM sailing. The earlier 11:55 AM boat leaves before the load can get there.",
   }),
-  step({
+  crewStep({
     day: day1,
     start: "3:20 PM",
     end: "4:50 PM",
     title: "Ferry Anacortes to Orcas",
     detail:
-      "The F-550 and trailer should measure under 60 ft, which pays the under-60-ft fare with the driver included (under 70 ft is $372.90). The second person pays the passenger fare. The return trip is free.",
+      "The F-550 and trailer should measure under 60 ft, which pays the under-60-ft fare with the driver included (under 70 ft is $372.90). The second crew member pays the passenger fare. The return trip is free.",
     extra: [
       {
         label: `Ferry: F-550 and trailer under 60 ft plus ${rates.people - 1} passenger, with the 3% card fee`,
@@ -547,151 +611,138 @@ const orderSteps: PlanStep[] = [
       },
     ],
   }),
-  step({
-    day: day1,
-    start: "4:50 PM",
-    end: "5:15 PM",
-    title: "Drive to the site",
-    detail: "About 9 miles to the Eastsound area, loaded.",
-    miles: 9,
-    ...diesel(rates.towMpgLoaded),
-  }),
-  step({
+  crewStep({ day: day1, start: "4:50 PM", end: "5:15 PM", title: "Drive to the site", detail: "About 9 miles to the Eastsound area, loaded.", miles: 9, ...diesel(rates.towMpgLoaded) }),
+  crewStep({
     day: day1,
     start: "5:15 PM",
     end: "5:45 PM",
     title: "Park and secure the load for the night",
     detail: "It's close to dark, so leave the metal on the trailer: park where the general contractor says, chock the wheels, check the straps and tarp, and unhitch.",
   }),
-  step({
-    day: day1,
-    start: "5:45 PM",
-    end: "6:00 PM",
-    title: "Drive to the motel in Eastsound",
-    detail: "A couple of miles, without the trailer.",
-    miles: 2,
-    ...diesel(rates.f550Mpg),
-  }),
-  step({
+  crewStep({ day: day1, start: "5:45 PM", end: "6:00 PM", title: "Drive to the motel in Eastsound", detail: "A couple of miles, without the trailer.", miles: 2, ...diesel(rates.f550Mpg) }),
+  crewStep({
     day: day1,
     start: "6:00 PM",
     end: "7:00 PM",
     title: "Check in and dinner",
     detail: "One room with two beds.",
     paid: false,
-    extra: [
-      { label: `Motel: 1 room at $${rates.motelRoom} plus ${Math.round(rates.lodgingTax * 100)}% tax`, amount: round2(rates.motelRoom * (1 + rates.lodgingTax)) },
-      meals("dinner"),
-    ],
+    extra: [motelNight, meals("dinner")],
   }),
-  step({
-    day: day2,
-    start: "6:45 AM",
-    end: "7:15 AM",
-    title: "Breakfast and check out",
-    detail: "Before the crew member goes on the clock.",
-    paid: false,
-    extra: [meals("breakfast")],
-  }),
-  step({
-    day: day2,
-    start: "7:15 AM",
-    end: "7:30 AM",
-    title: "Drive to the site",
-    detail: "A couple of miles from Eastsound.",
-    miles: 2,
-    ...diesel(rates.f550Mpg),
-  }),
-  step({
+  crewStep({ day: day2, start: "6:45 AM", end: "7:15 AM", title: "Breakfast", detail: "Before the crew goes on the clock.", paid: false, extra: [meals("breakfast")] }),
+  crewStep({ day: day2, start: "7:15 AM", end: "7:30 AM", title: "Drive to the site", detail: "A couple of miles from Eastsound.", miles: 2, ...diesel(rates.f550Mpg) }),
+  crewStep({
     day: day2,
     start: "7:30 AM",
     end: "10:30 AM",
     title: "Unload by hand",
     detail:
-      "Two people carry the panels off one at a time, flat and supported, and stack them on dunnage where the general contractor wants them. Keep the bundles in order of length, count everything again, and cover the stack.",
+      "Two people carry the panels off one at a time, flat and supported, and stack them on dunnage where the general contractor wants them. Keep the bundles in order of length, count everything again, and cover the stack. Set the ice and water rolls and eave trim aside for the dry-in.",
   }),
-  step({
+  crewStep({
     day: day2,
     start: "10:30 AM",
-    end: "11:50 AM",
+    end: "12:30 PM",
+    title: "Start the dry-in",
+    detail:
+      "Set roof anchors and harnesses. Walk the deck with the general contractor for loose or damaged sheathing; it has to be clean and dry for the membrane to stick. Install the eave flashing, line the valley first, then roll the ice and water shield from the eaves up, one person peeling the release film and one pressing it down, lapped as the manufacturer specifies.",
+  }),
+  crewStep({ day: day2, start: "12:30 PM", end: "1:00 PM", title: "Lunch", detail: "Unpaid meal break on site.", paid: false, extra: [meals("lunch")] }),
+  crewStep({
+    day: day2,
+    start: "1:00 PM",
+    end: "4:30 PM",
+    title: "Keep going on the dry-in",
+    detail: "Work up the roof plane by plane. At the end of the day, make sure every edge of the membrane laid so far is lapped and sealed in case of rain overnight.",
+  }),
+  crewStep({ day: day2, start: "4:30 PM", end: "4:45 PM", title: "Drive to the motel", detail: "Leave the empty trailer at the site.", miles: 2, ...diesel(rates.f550Mpg) }),
+  crewStep({ day: day2, start: "4:45 PM", end: "6:00 PM", title: "Second night and dinner", detail: "Same room.", paid: false, extra: [motelNight, meals("dinner")] }),
+  crewStep({ day: day3, start: "6:45 AM", end: "7:15 AM", title: "Breakfast", detail: "Before the crew goes on the clock.", paid: false, extra: [meals("breakfast")] }),
+  crewStep({ day: day3, start: "7:15 AM", end: "7:30 AM", title: "Drive to the site", detail: "A couple of miles from Eastsound.", miles: 2, ...diesel(rates.f550Mpg) }),
+  crewStep({
+    day: day3,
+    start: "7:30 AM",
+    end: "12:00 PM",
+    title: "Finish the dry-in",
+    detail: "Ice and water shield over the rest of the roof and over the ridge, flashed tight around every penetration.",
+  }),
+  crewStep({ day: day3, start: "12:00 PM", end: "12:30 PM", title: "Lunch", detail: "Unpaid meal break on site.", paid: false, extra: [meals("lunch")] }),
+  crewStep({
+    day: day3,
+    start: "12:30 PM",
+    end: "3:00 PM",
+    title: "Check the dry-in with the general contractor",
+    detail:
+      "Roll every lap, check that the deck is fully covered and the laps shed water, and fix anything loose. Walk the roof with the general contractor to show the house is dried in. Clean up the release film and offcuts, and leave the panel stack covered for the install.",
+  }),
+  crewStep({ day: day3, start: "3:00 PM", end: "3:15 PM", title: "Hitch the trailer and drive to the motel", detail: "A couple of miles, towing empty.", miles: 2, ...diesel(rates.towMpgEmpty) }),
+  crewStep({ day: day3, start: "3:15 PM", end: "6:00 PM", title: "Third night and dinner", detail: "Same room.", paid: false, extra: [motelNight, meals("dinner")] }),
+  crewStep({
+    day: day4,
+    start: "5:45 AM",
+    end: "6:50 AM",
     title: "Drive to the Orcas ferry landing and wait in line",
-    detail: "About 9 miles with the empty trailer, in line by about 10:50 AM for the 11:50 AM sailing.",
+    detail: "About 9 miles with the empty trailer, in line by about 6:05 AM for the 6:50 AM sailing.",
     miles: 9,
     ...diesel(rates.towMpgEmpty),
   }),
-  step({ day: day2, start: "11:50 AM", end: "1:05 PM", title: "Ferry Orcas to Anacortes", detail: "No fare is collected eastbound." }),
-  step({
-    day: day2,
-    start: "1:05 PM",
-    end: "1:35 PM",
-    title: "Lunch",
-    detail: "Unpaid meal break in Anacortes.",
-    paid: false,
-    extra: [meals("lunch")],
+  crewStep({
+    day: day4,
+    start: "6:50 AM",
+    end: "8:20 AM",
+    title: "Ferry Orcas to Anacortes",
+    detail: "No fare is collected eastbound. Breakfast on the boat.",
+    extra: [meals("breakfast")],
   }),
-  step({
-    day: day2,
-    start: "1:35 PM",
-    end: "4:15 PM",
+  crewStep({
+    day: day4,
+    start: "8:20 AM",
+    end: "10:50 AM",
     title: "Drive the empty trailer back to the rental yard",
     detail: "About 115 miles south on I-5.",
     miles: 115,
     ...diesel(rates.towMpgEmpty),
   }),
-  step({
-    day: day2,
-    start: "4:15 PM",
-    end: "4:45 PM",
-    title: "Return the trailer",
-    detail: "Walk around it with the yard and get the return signed off.",
-  }),
-  step({
-    day: day2,
-    start: "4:45 PM",
-    end: "7:45 PM",
+  crewStep({ day: day4, start: "10:50 AM", end: "11:20 AM", title: "Return the trailer", detail: "Walk around it with the yard and get the return signed off." }),
+  crewStep({ day: day4, start: "11:20 AM", end: "11:50 AM", title: "Lunch", detail: "Unpaid meal break.", paid: false, extra: [meals("lunch")] }),
+  crewStep({
+    day: day4,
+    start: "11:50 AM",
+    end: "2:50 PM",
     title: "Drive back to HQ in Coupeville",
-    detail: "About 130 miles north on I-5 and over Deception Pass, in evening traffic.",
+    detail: "About 130 miles north on I-5 and over Deception Pass.",
     miles: 130,
     ...diesel(rates.f550Mpg),
   }),
 ];
 
-const orderPickup: PlanPhase = {
-  number: 1,
-  part: 3,
-  title: "Order the metal and deliver it to Orcas",
+const dryInDelivery: PlanPhase = {
+  number: 2,
+  title: "Dry-in and metal delivery",
   summary:
-    "Order the panels, trim and accessories from Nu-Ray. Rent a 30 ft trailer near Nu-Ray, load the order there with the F-550, and drive up I-5 to the Anacortes ferry. On Orcas, park the load overnight, unload it by hand the next morning, and bring the empty trailer back to the rental yard.",
-  steps: orderSteps,
-  labor: crewLabor(orderSteps, "half an hour of prep the day before, then 5:15 AM to 6:00 PM on day 1 and 7:15 AM to 7:45 PM on day 2, less the unpaid lunches"),
-  materials: [
-    {
-      label: `Panels: ${orderSqFt.toLocaleString("en-US")} sq ft (${order.roofSquares} squares plus ${order.waste * 100}% waste) at $${order.panelPricePerSqFt.toFixed(2)}/sq ft`,
-      amount: panelCost,
-    },
-    {
-      label: `Trim, clips, screws, closures, sealant, underlayment: about ${order.accessoriesShare * 100}% of the panels`,
-      amount: round2(panelCost * order.accessoriesShare),
-    },
-  ],
+    "The crew's job, without the owner. Starts when the general contractor says the roof is sheathed. Pick up the metal at Nu-Ray and the ice and water shield at the supplier they recommend, with the F-550 and a rented 30 ft trailer, drive up I-5 to the Anacortes ferry, and park the load on site overnight. Next morning, unload by hand and start the dry-in: high-temperature ice and water shield over the whole deck, which takes about a day and a half. On day 4, take the early boat back and return the trailer.",
+  steps: deliverySteps,
+  labor: crewLabor(
+    deliverySteps,
+    "the crew lead's 1½ hours of calls and bookings, then both crew members for half an hour of prep, 5:15 AM to 6:00 PM on day 1, 7:15 AM to 4:45 PM on day 2, 7:15 AM to 3:15 PM on day 3 and 5:45 AM to 2:50 PM on day 4, less the unpaid lunches",
+    "Two crew members, one of them the crew lead (hours are person-hours)",
+    false,
+  ),
   assumptions: [
-    "The owner handles the order and the bookings, so that time isn't costed. The crew member is paid for the prep and both days on the road.",
-    "Two very long days: about 12 paid hours each. Washington overtime is weekly (over 40 hours), so these days can push the crew member into overtime if the week is already full.",
-    `The material prices are placeholders until Nu-Ray quotes. Published material-only prices for 24-gauge standing seam run about $2.50–9.00 per sq ft. Sales tax isn't included.`,
+    "The owner isn't part of phase 2. Two paid crew members make the trip, and the crew lead (one of them) handles the calls and bookings on the clock. Two people are needed to unload long panels and to lay the membrane.",
+    "The dry-in is 40 squares of CertainTeed WinterGuard HT, a self-adhered ice and water shield, laid by the two crew members over about a day and a half (roughly 13 hours on the roof, or about 3 squares an hour). A commercial labor study puts self-adhered membrane at about 54 labor-minutes per square, so this could run longer on a cut-up roof. The deck has to be dry for the membrane to stick, so rain can push it back a day.",
+    "If the roof was field-measured (phase 1, part 2, option B or C), the metal can't arrive until its lead time after the sheathing. The general contractor may need the dry-in sooner, which would mean a separate dry-in trip with the ice and water shield bought on its own.",
+    "Four days on the road: about 12, 9, 7½ and 8½ paid hours per crew member. Washington overtime is weekly (over 40 hours), so this can push the crew member into overtime if the week is already full.",
     `The trailer rental is a placeholder of $${rates.trailerPerDay} a day for ${rates.trailerDays} days, until a yard near Nu-Ray quotes. Ask about mileage charges, deposit and damage waiver.`,
-    "Renting the trailer near Burlington or Mount Vernon instead would cut the trailer's return trip on day 2 (about 115 miles south and 130 back) to about 20 miles, saving roughly 5 hours of driving.",
-    `The load is roughly ${loadLb.toLocaleString("en-US")} lb (24-gauge panels at about ${order.lbPerSqFt} lb per sq ft of roof, plus trim and accessories), well within what an F-550 can tow.`,
+    `The load is roughly ${loadLb.toLocaleString("en-US")} lb (24-gauge panels at about ${order.lbPerSqFt} lb per sq ft of roof, plus trim, accessories and ${iceWaterRolls} rolls of ice and water shield), well within what an F-550 can tow.`,
     "Check the driver's license class: a combination rated at 26,001 lb or more with a trailer rated over 10,000 lb needs a Class A CDL. Commercial vehicles over 10,000 lb may also need a USDOT number and a medical card for the driver.",
     `Diesel at $${rates.dieselPrice}/gal (Washington average); the F-550 at ${rates.f550Mpg} mpg alone, ${rates.towMpgEmpty} mpg with the empty trailer and ${rates.towMpgLoaded} mpg loaded (assumed).`,
-    "Unloading by hand assumes the owner and the crew member, about 3 hours for roughly 150 panels plus trim.",
   ],
   sources: [
-    { label: "Nu-Ray Metals", url: "https://www.nuraymetals.com/" },
-    { label: "Nu-Ray roofing profiles", url: "https://www.nuraymetals.com/roofing" },
     { label: "Nu-Ray contact and pickup", url: "https://www.nuraymetals.com/contact" },
+    { label: "Self-adhered vs. TPO labor study (CertainTeed)", url: "https://certainteed.com/inspiration/how-tos/need-speed-self-adhered-versus-tpo-single-ply-roofing" },
     { label: "WSF fares: Anacortes to Orcas", url: "https://www.wsdot.wa.gov/ferries/fares/faresdetail.aspx?departingterm=1&arrivingterm=15" },
     { label: "WSF fall 2026 schedule: Anacortes / San Juan Islands", url: "https://wsdot.com/ferries/schedule/scheduledetailbyroute.aspx?route=ana-sj-sid" },
-    { label: "Standing seam material prices (national guide)", url: "https://roofvista.com/resources/guides/metal-roofing-cost" },
   ],
 };
 
@@ -701,7 +752,7 @@ const all: Challenge[] = [
     number: 1,
     title: "40-square metal roof on new construction",
     location: "Orcas Island",
-    phases: [bid, fromPlans, dayTrip, overnight, orderPickup],
+    phases: [bid, fromPlans, dayTrip, overnight, orderMetal, dryInDelivery],
   },
   {
     id: "composite-tear-off",

@@ -145,8 +145,15 @@ export function ChallengePage() {
             fallback={<p class="muted">Instructions for this job haven’t been written yet.</p>}
           >
             {(options) => (
-              <section class="plan-phase">
-                <h2>{planHeading(options[0]!)}</h2>
+              <details class="plan-phase">
+                <summary>
+                  <h2>{planHeading(options[0]!)}</h2>
+                  <span class="plan-phase-total">
+                    {options.length > 1
+                      ? `${options.length} options`
+                      : formatMoney(total(options[0]!))}
+                  </span>
+                </summary>
                 <Show when={options.length > 1}>
                   <div class="table-wrap option-compare">
                     <table>
@@ -178,7 +185,7 @@ export function ChallengePage() {
                   </div>
                 </Show>
                 <For each={options}>{(phase) => <PhasePlan phase={phase} />}</For>
-              </section>
+              </details>
             )}
           </For>
         </article>

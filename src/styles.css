@@ -146,15 +146,32 @@ main.full-bleed { padding: 0; display: flex; flex-direction: column; min-height:
 .challenge-list a { font-size: 1.25rem; font-weight: 700; }
 .challenge-list .eyebrow { margin: 0 0 4px; font-size: 0.85rem; letter-spacing: 0.02em; color: var(--muted); }
 
-.plan-phase { margin-top: 40px; max-width: 760px; }
+.plan-phase { max-width: 760px; }
 .plan-steps { list-style: none; padding: 0; margin: 32px 0 0; border-top: 1px solid var(--line); }
 .plan-steps > li {
   display: grid; grid-template-columns: 9.5rem 1fr auto; gap: 4px 24px;
   padding: 20px 0; border-bottom: 1px solid var(--line);
 }
+.plan-steps h4 { margin: 0 0 4px; font-size: 1rem; }
+
+/* Each part of a phase collapses to its heading */
+.plan-phase { margin-top: 0; border-bottom: 1px solid var(--line); }
+.plan-phase:first-of-type { margin-top: 32px; border-top: 1px solid var(--line); }
+.plan-phase > summary {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  padding: 20px 0; cursor: pointer; list-style: none;
+}
+.plan-phase > summary::-webkit-details-marker { display: none; }
+.plan-phase > summary h2 { margin: 0; font-size: 1.35rem; }
+.plan-phase > summary h2::before { content: "▸"; display: inline-block; width: 1.2em; color: var(--muted); transition: transform 0.15s; }
+.plan-phase[open] > summary h2::before { transform: rotate(90deg); }
+.plan-phase > summary:hover h2 { color: var(--accent); }
+.plan-phase > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.plan-phase-total { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.plan-phase[open] { padding-bottom: 40px; }
+.plan-phase > summary + .plan-option, .plan-phase > summary + .option-compare { margin-top: 8px; }
 .plan-option { margin-top: 48px; }
 .plan-option > h3 { font-size: 1.25rem; }
-.plan-steps h4 { margin: 0 0 4px; font-size: 1rem; }
 .plan-steps > li.step-day { display: block; padding: 20px 0 4px; border-bottom: 0; font-weight: 700; font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
 .option-compare { margin-top: 24px; }
 .notes h4 { font-size: 1rem; margin: 0 0 8px; }
