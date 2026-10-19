@@ -1,11 +1,15 @@
-import { Link, Outlet } from "@tanstack/solid-router";
+import { Link, Outlet, useMatches } from "@tanstack/solid-router";
 
 const nav = [
   { to: "/", label: "Home" },
   { to: "/areas", label: "Service area" },
+  { to: "/map", label: "Map" },
 ] as const;
 
 export function Layout() {
+  const matches = useMatches();
+  const fullBleed = () => matches().some((m) => m.staticData?.fullBleed);
+
   return (
     <>
       <header class="site-header">
@@ -18,7 +22,7 @@ export function Layout() {
           </nav>
         </div>
       </header>
-      <main class="wrap">
+      <main class={fullBleed() ? "full-bleed" : "wrap"}>
         <Outlet />
       </main>
       <footer class="site-footer">
